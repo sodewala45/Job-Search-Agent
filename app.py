@@ -1,96 +1,81 @@
 import streamlit as st
 import pandas as pd
+import requests
+from bs4 import BeautifulSoup
 import re
 
 # 1. PAGE SETUP
-st.set_page_config(page_title="AI Job Search Agent", page_icon="🎯", layout="wide")
+st.set_page_config(page_title="AI Auto-Hunter", page_icon="🤖", layout="wide")
 
-# 2. SESSION STATE (To track approvals)
-if 'approved_jobs' not in st.session_state:
-    st.session_state.approved_jobs = []
+# 2. THE "SECRET DOOR" SCRAPER
+def scrape_linkedin_jobs(keywords, location="Remote"):
+    # Using LinkedIn's guest search API (No login required)
+    url = f"https://www.linkedin.com/jobs-guest/jobs/api/seeMoreJobPostings/search?keywords={keywords}&location={location}&start=0"
+    
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36"
+    }
+    
+    response = requests.get(url, headers=headers)
+    soup = BeautifulSoup(response.text, "html.parser")
+    job_cards = soup.find_all("li")
+    
+    job_list = []
+    for card in job_cards:
+        try:
+            title = card.find("h3", class_="base-search-card__title").get_text(strip=True)
+            company = card.find("h4", class_="base-search-card__subtitle").get_text(strip=True)
+            link = card.find("a", class_="base-card__full-link")["href"]
+            job_list.append({"Title": title, "Company": company, "Link": link})
+        except:
+            continue
+    return job_list
 
-# 3. HELPER FUNCTIONS
-def extract_keywords(text):
-    words = re.findall(r'\w+', text.lower())
-    stop_words = {'the', 'and', 'with', 'from', 'this', 'that', 'your', 'will', 'is', 'are', 'for'}
-    return [w for w in words if len(w) > 3 and w not in stop_words]
+# 3. INTERFACE
+st.title("🤖 AI Auto-Hunter: Autonomous Job Discovery")
+st.markdown("##### The agent will find jobs, you just click 'Approve'.")
 
-def get_google_search_link(query):
-    # Dorking technique: site:linkedin.com/jobs/ + your keywords
-    base_url = "https://www.google.com/search?q="
-    dork = f"site:linkedin.com/jobs/ \"remote\" {query}"
-    return base_url + dork.replace(" ", "+")
-
-# 4. SIDEBAR - THE AUTO-HUNTER
+# 4. DISCOVERY SIDEBAR
 with st.sidebar:
-    st.header("🔍 Auto-Hunter Discovery")
-    search_query = st.text_input("Job Role / Skills", "Python AI Automation")
+    st.header("Search Parameters")
+    role = st.text_input("Target Role", "Python AI Automation")
+    loc = st.text_input("Location", "Remote")
     
-    if st.button("Search LinkedIn for Jobs"):
-        st.success("Targeted Search Prepared!")
-        st.link_button("Open Live Job List", get_google_search_link(search_query))
+    if st.button("🚀 Find New Jobs Now"):
+        with st.spinner("Agent is scouting LinkedIn..."):
+            st.session_state.found_jobs = scrape_linkedin_jobs(role, loc)
+            st.success(f"Found {len(st.session_state.found_jobs)} opportunities!")
+
+# 5. APPROVAL QUEUE
+if 'found_jobs' in st.session_state and st.session_state.found_jobs:
+    st.subheader("📋 Pending Approval Queue")
     
+    for idx, job in enumerate(st.session_state.found_jobs):
+        with st.container():
+            c1, c2, c3 = st.columns([3, 2, 1])
+            with c1:
+                st.write(f"**{job['Title']}**")
+                st.caption(f"Company: {job['Company']}")
+            with c2:
+                st.link_button("View Original Post", job['Link'])
+            with c3:
+                # Once approved, this will generate the custom DM
+                if st.button("Approve & Draft", key=f"app_{idx}"):
+                    st.session_state.selected_job = job
+                    st.toast("Job Approved! Preparing Outreach...")
+
+# 6. AUTO-DRAFT SECTION
+if 'selected_job' in st.session_state:
     st.divider()
-    st.info("Paste a job description on the right once you find one you like!")
+    st.subheader(f"✨ Custom Outreach for {st.session_state.selected_job['Title']}")
+    
+    # Logic: Mentions your specific agents (Logistics/TikTok)
+    custom_dm = f"""
+Hi Hiring Manager at {st.session_state.selected_job['Company']},
 
-# 5. MAIN INTERFACE - THE APPROVAL & ANALYSIS ENGINE
-st.title("🎯 AI Job Hunter & ATS Optimizer")
-st.markdown("### Step 1: Find & Analyze")
+I noticed your opening for the {st.session_state.selected_job['Title']} role. I've built and deployed a suite of autonomous agents, including a Logistics Optimizer and a TikTok Lead Generator, using Python and CI/CD.
 
-col1, col2 = st.columns(2)
-
-with col1:
-    st.subheader("📄 Your Resume/Profile")
-    # This is where your new "About" section goes
-    resume_text = st.text_area("Paste your profile text:", height=200, placeholder="Paste your LinkedIn 'About' section here...")
-
-with col2:
-    st.subheader("📋 Job Description")
-    job_text = st.text_area("Paste the job you found:", height=200, placeholder="Paste the remote job description here...")
-
-# 6. ANALYSIS LOGIC
-if st.button("🚀 Run Analysis & Approve"):
-    if resume_text and job_text:
-        # Keyword Analysis
-        res_keywords = set(extract_keywords(resume_text))
-        job_keywords = set(extract_keywords(job_text))
-        matched = res_keywords.intersection(job_keywords)
-        missing = job_keywords - res_keywords
-        score = int((len(matched) / len(job_keywords)) * 100) if job_keywords else 0
-
-        # UI Results
-        st.divider()
-        st.subheader("📊 Agent Verdict")
-        
-        m_col1, m_col2 = st.columns(2)
-        m_col1.metric("ATS Match Score", f"{score}%")
-        
-        if score > 70:
-            st.success("✅ **Approved by Agent:** This is a strong match for your portfolio.")
-        else:
-            st.warning("⚠️ **Low Match:** Consider adding the missing keywords listed below.")
-
-        # Show missing keywords
-        st.write("**Add these to your profile to rank higher:**")
-        st.write(", ".join(list(missing)[:10]))
-
-        # 7. GENERATE THE "POST-APPROVAL" MESSAGE
-        st.divider()
-        st.subheader("📝 Step 2: Auto-Draft Approved Outreach")
-        
-        # This draft uses your actual projects as leverage
-        draft_message = f"""
-Hi [Hiring Manager Name], 
-
-I noticed your posting for a {search_query} role. I've developed and deployed a suite of autonomous AI agents (Lead Gen, Logistics, and ATS analysis) using Python and CI/CD. 
-
-My profile matches {score}% of your requirements, specifically in {", ".join(list(matched)[:3])}. I'd love to show you my live portfolio.
-
-Best,
-[Your Name]
-        """
-        st.text_area("Approved Outreach (Copy to LinkedIn):", draft_message, height=200)
-        st.info("Agent Tip: Open the job link, click 'Apply' or 'Message', and paste the text above.")
-
-    else:
-        st.error("Please provide both your profile and the job description to proceed.")
+I’d love to show you how I can automate workflows for your team. Here is my live portfolio: [YOUR PORTFOLIO LINK]
+    """
+    st.text_area("Copy this to LinkedIn Message:", custom_dm, height=200)
+    st.info("💡 Next Step: Open the 'View Original Post' link and paste this message to the recruiter.")
