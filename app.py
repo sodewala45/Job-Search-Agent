@@ -79,12 +79,11 @@ if 'results' in st.session_state and st.session_state.results:
         with st.expander(f"⭐ {job['Score']}% Match | {job['Title']} at {job['Company']}"):
             
             # The custom message
-            msg = f"Hi, I noticed the {job['Title']} role. My profile is a {job['Score']}% match. I've built 3 AI agents (Logistics, TikTok, and this ATS Hunter). Check my live portfolio here: [YOUR_PORTFOLIO_LINK]"
+            msg = f"Hi, I noticed the {job['Title']} role. My profile is a {job['Score']}% match. I've built 3 AI agents (Logistics, TikTok, and this ATS Hunter). Check my live portfolio here: [YOUR_LINK]"
             
-            st.write("📋 **Step 1: Copy this message** (Click the icon on the top right of the box below)")
-            st.code(msg, language="text") 
+            # Use text_area instead of st.code because it is more reliable on HF
+            st.text_area("📋 Copy this message:", value=msg, height=150, key=f"text_{idx}")
             
-            st.write("🚀 **Step 2: Apply**")
-            st.link_button("Open LinkedIn Job Page", job['Link'])
-            
-            st.caption("Once LinkedIn opens, just press Ctrl+V to paste your message.")
+            st.write("🚀 **Next Steps:**")
+            st.link_button("1. Open LinkedIn Job Page", job['Link'])
+            st.caption("2. Once open, Paste (Ctrl+V) the message you copied above.")
