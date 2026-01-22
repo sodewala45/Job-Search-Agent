@@ -78,17 +78,13 @@ if 'results' in st.session_state and st.session_state.results:
     for idx, job in enumerate(st.session_state.results):
         with st.expander(f"⭐ {job['Score']}% Match | {job['Title']} at {job['Company']}"):
             
-            # Prepare Custom Outreach
-            msg = f"Hi, I'm applying for the {job['Title']} role. My profile is a {job['Score']}% match. I've built 3 AI agents (Logistics, TikTok, and this ATS Hunter). Check my live portfolio here: [LINK]"
+            # The custom message
+            msg = f"Hi, I noticed the {job['Title']} role. My profile is a {job['Score']}% match. I've built 3 AI agents (Logistics, TikTok, and this ATS Hunter). Check my live portfolio here: [YOUR_PORTFOLIO_LINK]"
             
-            st.code(msg, language="text") # Easy to copy box
+            st.write("📋 **Step 1: Copy this message** (Click the icon on the top right of the box below)")
+            st.code(msg, language="text") 
             
-            c1, c2 = st.columns([1, 2])
-            with c1:
-                # Direct link button that opens the job
-                st.link_button("🚀 Open & Apply", job['Link'])
-            with c2:
-                st.caption("Click 'Open', then paste the message above into the LinkedIn application or DM.")
-
-elif 'results' in st.session_state:
-    st.warning("No matches found. Try lowering the 'Min Match %' or broadening keywords.")
+            st.write("🚀 **Step 2: Apply**")
+            st.link_button("Open LinkedIn Job Page", job['Link'])
+            
+            st.caption("Once LinkedIn opens, just press Ctrl+V to paste your message.")
